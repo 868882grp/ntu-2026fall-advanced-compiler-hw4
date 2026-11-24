@@ -1,4 +1,5 @@
 from typing import Dict, Set
+
 from cfg import CFG, BasicBlock
 
 
@@ -9,6 +10,7 @@ class DominatorTree:
         self.idom: Dict[BasicBlock, BasicBlock] = {}
         self.dom_frontiers: Dict[BasicBlock, Set[BasicBlock]] = {}
         self.compute_dominators()
+        self.compute_idom()
         self.compute_dominance_frontiers()
 
     def compute_dominators(self):
@@ -26,16 +28,17 @@ class DominatorTree:
         iterating = True
         while iterating:
             iterating = False
+            # Ignore entry block: all other blocks has well-defined predecessors,
+            # and entry block dominator is always but itself anyway
+            #
             # TODO: reverse post order
-            for bb in self.cfg.blocks.values():
-                new_dom = {bb}
-                if len(bb.predecessors) == 0:
-                    inter_pred_dom = set()
-                else:
-                    inter_pred_dom = set.intersection(
-                        *(self.dom[p] for p in bb.predecessors)
-                    )
-                new_dom = new_dom | inter_pred_dom
+            blocks = iter(self.cfg.blocks.values())
+            next(blocks)
+            for bb in blocks:
+                inter_pred_dom = set.intersection(
+                    *(self.dom[p] for p in bb.predecessors)
+                )
+                new_dom = {bb} | inter_pred_dom
                 if new_dom != self.dom[bb]:
                     self.dom[bb] = new_dom
                     iterating = True
@@ -54,20 +57,29 @@ class DominatorTree:
             else:
                 bfs_queue: deque[BasicBlock] = deque(bb.predecessors)
                 while len(bfs_queue) != 0:
-                    head = bfs_queue.popleft()
-                    if head == bb:
+                    ptr = bfs_queue.popleft()
+                    if ptr == bb:
                         pass
                     else:
-                        if head in self.dom[bb]:
-                            self.idom[bb] = head
+                        if ptr in self.dom[bb]:
+                            self.idom[bb] = ptr
                             break
                         else:
-                            bfs_queue.extend(head.predecessors)
+                            bfs_queue.extend(ptr.predecessors)
 
     def compute_dominance_frontiers(self):
         """
         Computes the dominance frontiers for each basic block.
+        Assumes both dominator and immediate dominator already calculated.
         """
-        # TODO: Implement dominance frontier computation.
-        raise NotImplementedError
-
+        self.dom_frontiers.clear()
+        for bb in self.cfg.blocks.values():
+            for pred in bb.predecessors:
+                # BB has predecessor, meaning immediate dominator shall be well-defined
+                ptr = pred
+                if bb in self.idom:
+                    while ptr != self.idom[bb]:
+                        self.dom_frontiers[ptr] = self.dom_frontiers.get(ptr, set()) | {
+                            bb
+                        }
+                        ptr = self.idom[ptr]
