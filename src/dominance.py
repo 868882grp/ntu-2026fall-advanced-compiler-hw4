@@ -74,10 +74,11 @@ class DominatorTree:
         """
         self.dom_frontiers.clear()
         for bb in self.cfg.blocks.values():
-            for pred in bb.predecessors:
-                # BB has predecessor, meaning immediate dominator shall be well-defined
-                ptr = pred
-                if bb in self.idom:
+            if len(bb.predecessors) > 1:
+                for pred in bb.predecessors:
+                    ptr = pred
+                    # BB has multiple predecessor,
+                    # meaning immediate dominator shall be well-defined
                     while ptr != self.idom[bb]:
                         self.dom_frontiers[ptr] = self.dom_frontiers.get(ptr, set()) | {
                             bb
